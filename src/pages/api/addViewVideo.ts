@@ -1,8 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { incrementView } from '@/lib/data/video-store';
+import { ensureVideoStoreLoaded, incrementView } from '@/lib/data/video-store';
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
     try {
+        await ensureVideoStoreLoaded();
         const body = JSON.parse(req.body);
         const id = parseInt(body.id);
 
@@ -10,7 +11,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
             return res.status(400).json({ error: 'Invalid video ID' });
         }
 
-        await incrementView(id);
+        incrementView(id);
         res.json(true);
     }
     catch (error) {

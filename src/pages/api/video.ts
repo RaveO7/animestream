@@ -1,8 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getVideoDetail } from '@/lib/data/video-store';
+import { ensureVideoStoreLoaded, getVideoDetail } from '@/lib/data/video-store';
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
     try {
+        await ensureVideoStoreLoaded();
         const body = JSON.parse(req.body);
         const id = parseInt(body.id);
 
@@ -10,7 +11,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
             return res.status(400).json({ error: 'Invalid video ID' });
         }
 
-        const detail = await getVideoDetail(id);
+        const detail = getVideoDetail(id);
         if (!detail) {
             return res.status(404).json({ error: 'Video not found' });
         }

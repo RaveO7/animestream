@@ -104,18 +104,14 @@ export function parseAnimeDetails(html: string, url: string): Omit<ScrapedAnime,
 
   const description = $('#synopsisText').text().trim();
 
-  const rawGenres = $('.genre-pill')
-    .map((_, el) => $(el).text().trim())
-    .get()
-    .filter(Boolean) as string[];
-
-  const seen = new Set<string>();
-  const genres: string[] = [];
-  for (const g of rawGenres) {
-    if (seen.has(g)) continue;
-    seen.add(g);
-    genres.push(g);
-  }
+  const genres = [
+    ...new Set(
+      $('.genre-pill')
+        .map((_, el) => $(el).text().trim())
+        .get()
+        .filter(Boolean)
+    ),
+  ];
 
   const studio = $('#studioText').text().trim() || undefined;
   const year = $('.info-val')
@@ -169,14 +165,7 @@ export function parseEpisodesJs(jsContent: string): ScrapedEpisode[] {
 
   while ((match = regex.exec(jsContent)) !== null) {
     const playerName = match[1];
-    // Eviter matchAll/spread (problèmes TS "downlevelIteration")
-    const urls: string[] = [];
-    const urlRegex = /['"]([^'"]+)['"]/g;
-    let urlMatch: RegExpExecArray | null;
-    while ((urlMatch = urlRegex.exec(match[2])) !== null) {
-      const url = urlMatch[1]?.trim();
-      if (url) urls.push(url);
-    }
+    const urls = [...match[2].matchAll(/['"]([^'"]+)['"]/g)].map((m) => m[1].trim());
     players[playerName] = urls;
   }
 

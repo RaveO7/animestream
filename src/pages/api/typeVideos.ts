@@ -1,16 +1,17 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getTableName, validateTableName } from '@/lib/query-helpers';
-import { getAnimeVideos, getTypeVideos } from '@/lib/data/video-store';
+import { ensureVideoStoreLoaded, getAnimeVideos, getTypeVideos } from '@/lib/data/video-store';
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
     try {
+        await ensureVideoStoreLoaded();
         const body = JSON.parse(req.body);
         const numberVideoByPage = parseInt(process.env.Number_Video!);
         const type = body.type || "studio";
 
         const posts = type === 'anime'
-            ? await getAnimeVideos(body.name, body.order || "Latest", body.pageNbr, numberVideoByPage)
-            : await getTypeVideos(
+            ? getAnimeVideos(body.name, body.order || "Latest", body.pageNbr, numberVideoByPage)
+            : getTypeVideos(
                 validateTableName(getTableName(type)) as 'Channel' | 'Actor' | 'Categorie',
                 body.name,
                 body.order || "Latest",

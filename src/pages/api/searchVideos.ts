@@ -1,8 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { searchVideos } from '@/lib/data/video-store';
+import { ensureVideoStoreLoaded, searchVideos } from '@/lib/data/video-store';
 
 export default async function handle(req: NextApiRequest, res: NextApiResponse) {
     try {
+        await ensureVideoStoreLoaded();
         const body = JSON.parse(req.body);
         const numberVideoByPage = parseInt(process.env.Number_Video!);
         const search = body.search || "";
@@ -12,7 +13,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
             type = "videos";
         }
 
-        const posts = await searchVideos(
+        const posts = searchVideos(
             search,
             type as 'videos' | 'animes' | 'studios' | 'genres',
             body.order || "Latest",
