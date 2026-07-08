@@ -15,7 +15,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
             return res.status(400).json({ error: 'Invalid cookie value' });
         }
 
-        incrementVal(id, cookie);
+        await incrementVal(id, cookie);
         res.json({ success: true });
     }
     catch (error) {

@@ -12,7 +12,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
             type = "videos";
         }
 
-        const posts = searchVideos(
+        const posts = await searchVideos(
             search,
             type as 'videos' | 'animes' | 'studios' | 'genres',
             body.order || "Latest",

@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import type { ScrapedAnime } from '@/lib/scraper/anime-sama-types';
 import { calculatePagination } from '@/lib/query-helpers';
@@ -21,30 +21,49 @@ export interface VideoRecord {
 }
 
 const DATA_FILE = join(process.cwd(), 'data', 'scraped-anime.json');
+const SCRAPED_ANIME_JSON_URL = process.env.SCRAPED_ANIME_JSON_URL;
 
 let cachedVideos: VideoRecord[] | null = null;
 let cachedAnimes: ScrapedAnime[] | null = null;
-
-function getScrapedAnimes(): ScrapedAnime[] {
-  if (!cachedAnimes) {
-    if (!existsSync(DATA_FILE)) {
-      cachedAnimes = [];
-    } else {
-      cachedAnimes = JSON.parse(readFileSync(DATA_FILE, 'utf-8')) as ScrapedAnime[];
-    }
-  }
-  return cachedAnimes;
-}
+let animesPromise: Promise<ScrapedAnime[]> | null = null;
+let videosPromise: Promise<VideoRecord[]> | null = null;
 
 function unique(values: string[]): string[] {
   return [...new Set(values.map((v) => v.trim()).filter(Boolean))];
 }
 
-function loadFromScrapedJson(): VideoRecord[] {
-  if (!existsSync(DATA_FILE)) return [];
+async function loadScrapedAnimes(): Promise<ScrapedAnime[]> {
+  if (cachedAnimes) return cachedAnimes;
+  if (animesPromise) return animesPromise;
 
-  const raw = readFileSync(DATA_FILE, 'utf-8');
-  const animes = JSON.parse(raw) as ScrapedAnime[];
+  animesPromise = (async () => {
+    if (SCRAPED_ANIME_JSON_URL) {
+      const res = await fetch(SCRAPED_ANIME_JSON_URL, {
+        headers: { 'User-Agent': 'anime-stream/1.0' },
+      });
+      if (!res.ok) {
+        throw new Error(`Impossible de charger SCRAPED_ANIME_JSON_URL (HTTP ${res.status})`);
+      }
+      const json = (await res.json()) as ScrapedAnime[];
+      cachedAnimes = json;
+      return json;
+    }
+
+    if (!existsSync(DATA_FILE)) {
+      cachedAnimes = [];
+      return cachedAnimes;
+    }
+
+    const raw = readFileSync(DATA_FILE, 'utf-8');
+    cachedAnimes = JSON.parse(raw) as ScrapedAnime[];
+    return cachedAnimes;
+  })();
+
+  cachedAnimes = await animesPromise;
+  return cachedAnimes;
+}
+
+function buildVideosFromAnimes(animes: ScrapedAnime[]): VideoRecord[] {
   const videos: VideoRecord[] = [];
   let id = 1;
 
@@ -80,17 +99,30 @@ function loadFromScrapedJson(): VideoRecord[] {
   return videos;
 }
 
-export function getVideos(): VideoRecord[] {
-  if (!cachedVideos) {
-    cachedVideos = loadFromScrapedJson();
-  }
+async function loadVideos(): Promise<VideoRecord[]> {
+  if (cachedVideos) return cachedVideos;
+  if (videosPromise) return videosPromise;
+
+  videosPromise = (async () => {
+    const animes = await loadScrapedAnimes();
+    const vids = buildVideosFromAnimes(animes);
+    cachedVideos = vids;
+    return vids;
+  })();
+
+  cachedVideos = await videosPromise;
   return cachedVideos;
 }
 
-export function reloadVideos(): VideoRecord[] {
-  cachedVideos = loadFromScrapedJson();
+export async function getVideos(): Promise<VideoRecord[]> {
+  return loadVideos();
+}
+
+export function reloadVideos() {
+  cachedVideos = null;
   cachedAnimes = null;
-  return cachedVideos;
+  animesPromise = null;
+  videosPromise = null;
 }
 
 function sortByName<T extends { name: string }>(entries: T[], order: string): T[] {
@@ -124,8 +156,8 @@ function paginate<T>(items: T[], pageNbr: number, pageSize: number) {
   return items.slice(startSearchVideo, startSearchVideo + pageSize);
 }
 
-export function getHomeVideos(order: string, pageNbr: number, pageSize: number) {
-  const all = sortVideos(getVideos(), order);
+export async function getHomeVideos(order: string, pageNbr: number, pageSize: number) {
+  const all = sortVideos(await getVideos(), order);
   const total = all.length;
   const page = paginate(all, pageNbr, pageSize);
 
@@ -141,19 +173,21 @@ export function getHomeVideos(order: string, pageNbr: number, pageSize: number) 
   }));
 }
 
-export function getVideoById(id: number): VideoRecord | undefined {
-  return getVideos().find((video) => video.id === id);
+export async function getVideoById(id: number): Promise<VideoRecord | undefined> {
+  const videos = await getVideos();
+  return videos.find((video) => video.id === id);
 }
 
-export function getVideoDetail(id: number) {
-  const video = getVideoById(id);
+export async function getVideoDetail(id: number) {
+  const video = await getVideoById(id);
   if (!video) return null;
 
   const channel = video.channels?.split(',')[0]?.trim() ?? '';
-  const sameChannel = getVideos().filter(
+  const videos = await getVideos();
+  const sameChannel = videos.filter(
     (v) => v.id !== id && channel && v.channels?.includes(channel)
   );
-  const others = getVideos().filter((v) => v.id !== id);
+  const others = videos.filter((v) => v.id !== id);
 
   const related = [...sameChannel, ...others].slice(0, 9).map((v) => ({
     id: v.id,
@@ -166,7 +200,7 @@ export function getVideoDetail(id: number) {
   }));
 
   return {
-    channelCount: channel ? sameChannel.length + 1 : getVideos().length,
+    channelCount: channel ? sameChannel.length + 1 : videos.length,
     video: {
       title: video.title,
       imgUrl: video.imgUrl,
@@ -183,8 +217,8 @@ export function getVideoDetail(id: number) {
   };
 }
 
-export function getDataVideo(id: number) {
-  const video = getVideoById(id);
+export async function getDataVideo(id: number) {
+  const video = await getVideoById(id);
   if (!video) return null;
 
   return {
@@ -196,15 +230,15 @@ export function getDataVideo(id: number) {
   };
 }
 
-export function incrementView(id: number): boolean {
-  const video = getVideoById(id);
+export async function incrementView(id: number): Promise<boolean> {
+  const video = await getVideoById(id);
   if (!video) return false;
   video.view += 1;
   return true;
 }
 
-export function incrementVal(id: number, cookie: 'l' | 'd' | 'r'): boolean {
-  const video = getVideoById(id);
+export async function incrementVal(id: number, cookie: 'l' | 'd' | 'r'): Promise<boolean> {
+  const video = await getVideoById(id);
   if (!video) return false;
 
   if (cookie === 'l') video.like += 1;
@@ -222,11 +256,12 @@ function getFieldForTable(table: TypeKind): keyof Pick<VideoRecord, 'channels' |
   return 'channels';
 }
 
-function getTypeEntries(table: TypeKind) {
+async function getTypeEntries(table: TypeKind) {
   const field = getFieldForTable(table);
   const map = new Map<string, { name: string; imgUrl: string; count: number }>();
 
-  for (const video of getVideos()) {
+  const videos = await getVideos();
+  for (const video of videos) {
     const raw = video[field];
     if (!raw) continue;
 
@@ -243,8 +278,9 @@ function getTypeEntries(table: TypeKind) {
   return [...map.values()].filter((entry) => entry.count >= 1);
 }
 
-export function getAnimes(order: string, pageNbr: number, pageSize: number) {
-  const entries = getScrapedAnimes().map((anime) => ({
+export async function getAnimes(order: string, pageNbr: number, pageSize: number) {
+  const animes = await loadScrapedAnimes();
+  const entries = animes.map((anime) => ({
     name: anime.title,
     imgUrl: anime.thumbnail,
     nbr: anime.seasons.reduce((sum, season) => sum + season.episodes.length, 0),
@@ -263,14 +299,14 @@ export function getAnimes(order: string, pageNbr: number, pageSize: number) {
   }));
 }
 
-export function getAnimeVideos(
+export async function getAnimeVideos(
   animeName: string,
   order: string,
   pageNbr: number,
   pageSize: number
 ) {
   const prefix = `${animeName} - Saison`;
-  const filtered = getVideos().filter((video) => video.title.startsWith(prefix));
+  const filtered = (await getVideos()).filter((video) => video.title.startsWith(prefix));
   const sorted = sortVideos(filtered, order);
   const total = sorted.length;
   const page = paginate(sorted, pageNbr, pageSize);
@@ -288,8 +324,8 @@ export function getAnimeVideos(
   }));
 }
 
-export function getTypes(table: TypeKind, order: string, pageNbr: number, pageSize: number) {
-  let entries = getTypeEntries(table);
+export async function getTypes(table: TypeKind, order: string, pageNbr: number, pageSize: number) {
+  let entries = await getTypeEntries(table);
   entries = sortByName(entries, order);
 
   const total = entries.length;
@@ -304,7 +340,7 @@ export function getTypes(table: TypeKind, order: string, pageNbr: number, pageSi
   }));
 }
 
-export function getTypeVideos(
+export async function getTypeVideos(
   table: TypeKind,
   name: string,
   order: string,
@@ -312,7 +348,7 @@ export function getTypeVideos(
   pageSize: number
 ) {
   const field = getFieldForTable(table);
-  const filtered = getVideos().filter((video) =>
+  const filtered = (await getVideos()).filter((video) =>
     video[field]?.split(',').map((v) => v.trim()).includes(name)
   );
   const sorted = sortVideos(filtered, order);
@@ -332,7 +368,7 @@ export function getTypeVideos(
   }));
 }
 
-export function searchVideos(
+export async function searchVideos(
   search: string,
   type: 'videos' | 'animes' | 'studios' | 'genres',
   order: string,
@@ -342,7 +378,7 @@ export function searchVideos(
   const query = search.toLowerCase();
 
   if (type === 'videos') {
-    const filtered = getVideos().filter(
+    const filtered = (await getVideos()).filter(
       (video) =>
         video.title.toLowerCase().includes(query) ||
         (video.description ?? '').toLowerCase().includes(query)
@@ -365,7 +401,7 @@ export function searchVideos(
   }
 
   if (type === 'animes') {
-    let entries = getScrapedAnimes()
+    let entries = (await loadScrapedAnimes())
       .filter((anime) => anime.title.toLowerCase().includes(query))
       .map((anime) => ({
         name: anime.title,
@@ -388,7 +424,7 @@ export function searchVideos(
   const table = type === 'genres' ? 'Categorie' : 'Channel';
   const field = getFieldForTable(table as TypeKind);
 
-  const entries = getTypeEntries(table as TypeKind).filter((entry) =>
+  const entries = (await getTypeEntries(table as TypeKind)).filter((entry) =>
     entry.name.toLowerCase().includes(query)
   );
 
@@ -403,6 +439,7 @@ export function searchVideos(
   }));
 }
 
-export function getTableNames(table: TypeKind): Array<{ name: string }> {
-  return getTypeEntries(table).map((entry) => ({ name: entry.name }));
+export async function getTableNames(table: TypeKind): Promise<Array<{ name: string }>> {
+  const entries = await getTypeEntries(table);
+  return entries.map((entry) => ({ name: entry.name }));
 }

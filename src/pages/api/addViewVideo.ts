@@ -10,7 +10,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
             return res.status(400).json({ error: 'Invalid video ID' });
         }
 
-        incrementView(id);
+        await incrementView(id);
         res.json(true);
     }
     catch (error) {

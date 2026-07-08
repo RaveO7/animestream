@@ -9,8 +9,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         const type = body.type || "studio";
 
         const posts = type === 'anime'
-            ? getAnimeVideos(body.name, body.order || "Latest", body.pageNbr, numberVideoByPage)
-            : getTypeVideos(
+            ? await getAnimeVideos(body.name, body.order || "Latest", body.pageNbr, numberVideoByPage)
+            : await getTypeVideos(
                 validateTableName(getTableName(type)) as 'Channel' | 'Actor' | 'Categorie',
                 body.name,
                 body.order || "Latest",
