@@ -29,7 +29,16 @@ let animesPromise: Promise<ScrapedAnime[]> | null = null;
 let videosPromise: Promise<VideoRecord[]> | null = null;
 
 function unique(values: string[]): string[] {
-  return [...new Set(values.map((v) => v.trim()).filter(Boolean))];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of values) {
+    const normalized = v.trim();
+    if (!normalized) continue;
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
 }
 
 async function loadScrapedAnimes(): Promise<ScrapedAnime[]> {
@@ -258,7 +267,7 @@ function getFieldForTable(table: TypeKind): keyof Pick<VideoRecord, 'channels' |
 
 async function getTypeEntries(table: TypeKind) {
   const field = getFieldForTable(table);
-  const map = new Map<string, { name: string; imgUrl: string; count: number }>();
+  const entriesByName: Record<string, { name: string; imgUrl: string; count: number }> = {};
 
   const videos = await getVideos();
   for (const video of videos) {
@@ -266,16 +275,22 @@ async function getTypeEntries(table: TypeKind) {
     if (!raw) continue;
 
     for (const name of raw.split(',').map((v) => v.trim()).filter(Boolean)) {
-      const existing = map.get(name);
-      if (existing) {
-        existing.count += 1;
+      if (!entriesByName[name]) {
+        entriesByName[name] = { name, imgUrl: video.imgUrl ?? '', count: 1 };
       } else {
-        map.set(name, { name, imgUrl: video.imgUrl ?? '', count: 1 });
+        entriesByName[name].count += 1;
       }
     }
   }
 
-  return [...map.values()].filter((entry) => entry.count >= 1);
+  const out: Array<{ name: string; imgUrl: string; count: number }> = [];
+  // for..in avoids iterating Map/iterator types (downlevelIteration issues)
+  for (const key in entriesByName) {
+    const entry = entriesByName[key];
+    if (!entry) continue;
+    if (entry.count >= 1) out.push(entry);
+  }
+  return out;
 }
 
 export async function getAnimes(order: string, pageNbr: number, pageSize: number) {
