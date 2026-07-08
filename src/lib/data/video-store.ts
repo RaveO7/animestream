@@ -67,7 +67,7 @@ function buildVideosFromAnimes(animes: ScrapedAnime[]): VideoRecord[] {
 }
 
 function unique(values: string[]): string[] {
-  return [...new Set(values.map((v) => v.trim()).filter(Boolean))];
+  return Array.from(new Set(values.map((v) => v.trim()).filter(Boolean)));
 }
 
 async function loadAnimesFromBlob(): Promise<ScrapedAnime[]> {
@@ -131,7 +131,8 @@ export function getVideos(): VideoRecord[] {
 export function reloadVideos(): VideoRecord[] {
   cachedVideos = null;
   cachedAnimes = null;
-  return cachedVideos;
+  storeInitPromise = null;
+  return [];
 }
 
 function sortByName<T extends { name: string }>(entries: T[], order: string): T[] {
@@ -281,7 +282,7 @@ function getTypeEntries(table: TypeKind) {
     }
   }
 
-  return [...map.values()].filter((entry) => entry.count >= 1);
+  return Array.from(map.values()).filter((entry) => entry.count >= 1);
 }
 
 export function getAnimes(order: string, pageNbr: number, pageSize: number) {

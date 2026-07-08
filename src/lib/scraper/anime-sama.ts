@@ -104,14 +104,14 @@ export function parseAnimeDetails(html: string, url: string): Omit<ScrapedAnime,
 
   const description = $('#synopsisText').text().trim();
 
-  const genres = [
-    ...new Set(
+  const genres = Array.from(
+    new Set(
       $('.genre-pill')
         .map((_, el) => $(el).text().trim())
         .get()
         .filter(Boolean)
-    ),
-  ];
+    )
+  );
 
   const studio = $('#studioText').text().trim() || undefined;
   const year = $('.info-val')
@@ -165,7 +165,7 @@ export function parseEpisodesJs(jsContent: string): ScrapedEpisode[] {
 
   while ((match = regex.exec(jsContent)) !== null) {
     const playerName = match[1];
-    const urls = [...match[2].matchAll(/['"]([^'"]+)['"]/g)].map((m) => m[1].trim());
+    const urls = Array.from(match[2].matchAll(/['"]([^'"]+)['"]/g)).map((m) => m[1].trim());
     players[playerName] = urls;
   }
 
