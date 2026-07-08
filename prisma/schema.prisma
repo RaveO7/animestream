@@ -1,0 +1,48 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Videos {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  imgUrl      String?
+  videoUrl    String
+  time        String?
+  actors      String?
+  channels    String?
+  categories  String?
+  like        Int      @default(0)
+  dislike     Int      @default(0)
+  view        Int      @default(0)
+  repport     Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model Actor {
+  idVideo Int
+  name    String
+
+  @@id([idVideo, name])
+}
+model Channel {
+  idVideo Int
+  name    String
+
+  @@id([idVideo, name])
+}
+model Categorie {
+  idVideo Int
+  name    String
+
+  @@id([idVideo, name])
+}

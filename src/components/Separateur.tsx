@@ -1,0 +1,2 @@
+export function Separateur({ height }: any) { return (<div className={`mx-2 h-${height} w-[1px] bg-red-50 opacity-10`}></div>) }
+export function SeparateurLigne() { return (<div className='w-full border-b-2 opacity-10 border-red-50 my-3'></div>) }
