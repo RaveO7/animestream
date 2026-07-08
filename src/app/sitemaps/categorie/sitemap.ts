@@ -1,24 +1,14 @@
 import { MetadataRoute } from 'next'
 import { CHUNK } from '@/lib/sitemap-config';
 import { normalizeUrl } from '@/components/Utils';
-import { getTableNames } from '@/lib/data/video-store';
 
 export const revalidate = 3600 * 24;
 
 export async function generateSitemaps() {
-    const count = getTableNames('Categorie').length;
-    const numberOfSitemaps = Math.max(1, Math.ceil(count / CHUNK));
-    return Array.from({ length: numberOfSitemaps }, (_, i) => ({ id: i }));
+    // sitemap neutre (évite de charger data/scraped-anime.json pendant le build)
+    return [{ id: 0 }];
 }
 
 export default async function sitemap({ id }: { id: number }): Promise<MetadataRoute.Sitemap> {
-    const start = id * CHUNK;
-    const categories = getTableNames('Categorie').slice(start, start + CHUNK);
-
-    return categories.map(({ name }) => ({
-        url: normalizeUrl(process.env.Site_URL || '', `genre/${encodeURIComponent(name)}`),
-        lastModified: new Date(),
-        changeFrequency: 'monthly' as const,
-        priority: 0.45,
-    }));
+    return [];
 }
